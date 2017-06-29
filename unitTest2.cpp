@@ -4,12 +4,17 @@
 #include <chrono>
 #include <unordered_set>
 
+class Directory;
+
 class Entry{
   public:
     std::chrono::time_point<std::chrono::system_clock> dateCreated;
     std::string fileName;
+    Directory* parent;
     Entry(std::string name);
     ~Entry();
+    virtual Directory* changeDir(Entry* dir, Directory* currentDir);
+    void setParent(Directory* par);
 };
 
 Entry::Entry(std::string name){
@@ -20,48 +25,43 @@ Entry::Entry(std::string name){
 Entry::~Entry(){
 }
 
+Directory* Entry::changeDir(Entry* dir, Directory* currentDir){
+  std::cout<<"You cannot change directories into a file\n";
+  return currentDir;
+}
+
+void Entry::setParent(Directory* par){
+  parent = par;
+}
+
 class Directory:public Entry{
   public:
     Directory(std::string name);
-    void setParent(Directory* par);
-    Directory* changeDir(Directory* dir, Directory* currentDir);
+    Directory* changeDir(Entry* dir, Directory* currentDir);
     std::unordered_set<Entry*> allEntries;
-    Directory* parent;
 };
 
 Directory::Directory(std::string name):Entry(name){
   fileName = name;
   dateCreated = std::chrono::system_clock::now();
+  parent = NULL;
+  allEntries = {};
 }
 
-void Directory::setParent(Directory* par){
-  parent = par;
-}
 
-Directory* Directory::changeDir(Directory* dir, Directory* currentDir){
-  currentDir = dir;
+Directory* Directory::changeDir(Entry* dir, Directory* currentDir){
+  currentDir = (Directory*)dir;
   return currentDir;
 }
 
 class File:public Entry{
   public:
     File(std::string name);
-    void setParent(Directory* par);
-    void changeDir(Directory* dir, Directory* currentDir);
-    Directory* parent;
 };
 
 File::File(std::string name):Entry(name){
   fileName = name;
-    dateCreated = std::chrono::system_clock::now();
-}
-
-void File::setParent(Directory* par){
-  parent = par;
-}
-
-void File::changeDir(Directory* dir, Directory* currentDir){
-  std::cout<<"You cannot change directories into a file\n";
+  dateCreated = std::chrono::system_clock::now();
 }
 
 class FileSystem{
@@ -73,21 +73,22 @@ class FileSystem{
     bool addDir(std::string name);
     bool delEntry(std::string name);
     bool cd(std::string name);
+    void printDir();
 };
 
 FileSystem::FileSystem(){
-  Directory dir = Directory("root");
-  currentDir = &dir;
+  Directory* dir = new Directory("root");
+  currentDir = dir;
 }
 
 FileSystem::~FileSystem(){
 }
 
 bool FileSystem::addFile(std::string name){
-  File newFile = File(name);
-  newFile.setParent(currentDir);
+  File* newFile = new File(name);
+  newFile->setParent(currentDir);
   if(currentDir->allEntries.size() == 0) {
-    currentDir->allEntries.insert(&newFile);
+    currentDir->allEntries.insert(newFile);
     return true;
   }
   else{
@@ -99,16 +100,16 @@ bool FileSystem::addFile(std::string name){
 	return false;
       }
     }
-    currentDir->allEntries.insert(&newFile);
+    currentDir->allEntries.insert(newFile);
     return true;
   }
 }
 
 bool FileSystem::addDir(std::string name){
-  Directory newDir = Directory(name);
-  newDir.setParent(currentDir);
+  Directory* newDir = new Directory(name);
+  newDir->setParent(currentDir);
   if(currentDir->allEntries.size() == 0) {
-    currentDir->allEntries.insert(&newDir);
+    currentDir->allEntries.insert(newDir);
     return true;
   }
   else{
@@ -116,11 +117,11 @@ bool FileSystem::addDir(std::string name){
       Entry* entryP = *i;				//We need to access every element in the set so that we can get the name and make sure
       Entry thisEntry = *entryP;			//the file/directory name does not already exist in the current Dir
       if(thisEntry.fileName == name){
-        std::cout<<"This file name already exist in this directory\n";
+        std::cout<<"This dir already exist in this directory\n";
 	return false;
       }
     }
-    currentDir->allEntries.insert(&newDir);
+    currentDir->allEntries.insert(newDir);
     return true;
   }
 }
@@ -151,12 +152,33 @@ bool FileSystem::cd(std::string name){
   }
   for (auto i = currentDir->allEntries.begin(); i != currentDir->allEntries.end(); i++){
     Entry* entryP = *i;				//We need to access every element in the set so that we can get the name and make sure
-    Entry thisEntry = *entryP;			//the file/directory name does not already exist in the current Dir
-    if(thisEntry.fileName == name){
-      currentDir = thisEntry.changeDir(*i, &currentDir);
+    if(entryP->fileName == name){
+      currentDir = entryP->changeDir(*i, currentDir);
     }
   }
 }
 
+void FileSystem::printDir(){
+  for (auto i = currentDir->allEntries.begin(); i != currentDir->allEntries.end(); i++){
+    Entry* entryP = *i;
+    std::cout<<entryP->fileName<<"\n";
+  }
+}
+
 int main(){
+  FileSystem fs = FileSystem();
+  fs.addFile("fil1");
+  fs.addFile("fil2");
+  fs.addFile("fil3");
+  fs.addDir("dir1");
+  fs.addDir("dir2");
+  fs.printDir();
+  std::cout<<"--------------------\n";
+  fs.delEntry("dir2");
+  fs.printDir();
+  std::cout<<"--------------------\n";
+  fs.cd("fil1");
+  fs.addDir("dir5");
+  fs.addFile("fil1");
+  fs.printDir();
 }
